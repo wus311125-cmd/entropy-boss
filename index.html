@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>熵王 ／ The Entropy</title>
+<style>
+  :root{
+    --hp:#e74c3c; --hp-bg:#3a2b2b; --gold:#e8b14c; --ink:#e8e0d0;
+    --bg1:#0d0a12; --bg2:#1a1220; --aura:#7a3fd1;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background:radial-gradient(ellipse at 50% 0%, #241530 0%, var(--bg1) 70%);
+    color:var(--ink); font-family:Georgia, "Times New Roman", serif;
+    overflow:hidden; user-select:none;
+  }
+  #wrap{ position:relative; width:100vw; height:100vh; overflow:hidden; }
+
+  /* ============ 背景星空 / 粒子喧囂 ============ */
+  #sky{ position:absolute; inset:0; }
+  #sky canvas{ width:100%; height:100%; display:block; }
+
+  /* ============ 魔王 ============ */
+  .boss-zone{
+    position:absolute; left:50%; top:34%; transform:translate(-50%,-60%);
+    width:min(46vw,38vh); height:min(46vw,38vh); z-index:5;
+  }
+  .boss{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    will-change:transform;
+  }
+  .boss .figure{ font-size:clamp(70px,16vw,150px); filter:drop-shadow(0 0 26px rgba(233,80,60,.55)); }
+  .boss.hit{ animation:hit .18s linear; }
+  @keyframes hit{ 0%{transform:translateX(0)} 15%{transform:translateX(-14px)} 30%{transform:translateX(12px)} 45%{transform:translateX(-9px)} 60%{transform:translateX(7px)} 100%{transform:translateX(0)} }
+  .boss.dead{ animation:death 1.4s linear forwards; }
+  @keyframes death{
+    0%{ opacity:1; transform:scale(1,1) }
+    25%{ opacity:1; transform:scale(1.4,.55); filter:brightness(2.4) }
+    55%{ opacity:.85; transform:scale(2.2,.4); }
+    80%{ transform:scale(.2,.2); opacity:.4; }
+    100%{ transform:scale(.02,.02); opacity:0; }
+  }
+  .boss.spawn{ animation:spawn 1s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes spawn{ 0%{transform:scale(0,0); opacity:0; filter:brightness(5)} 70%{transform:scale(1.25,1.25); opacity:1} 100%{transform:scale(1,1); filter:brightness(1)} }
+
+  /* 魔王名 + 復活稱號 */
+  #bossTitle{
+    position:absolute; left:50%; top:14%;
+    transform:translateX(-50%); z-index:6; text-align:center; width:100%;
+  }
+  #bossTitle h1{
+    font-size:clamp(22px,5.2vw,44px); letter-spacing:.06em; color:#c9b6d8;
+    text-shadow:0 0 18px rgba(122,63,209,.5);
+    font-style:italic;
+  }
+  #reviveTag{
+    margin-top:6px; font-size:clamp(12px,2.2vw,18px); color:#9a8bb0;
+  }
+
+  /* ============ HP 條 ============ */
+  .hpbar{
+    position:absolute; left:50%; top:auto; bottom:12%;
+    transform:translateX(-50%); width:min(70vw,66vh); height:26px; z-index:3;
+    background:var(--hp-bg); border:2px solid #4a2828; border-radius:14px;
+    box-shadow:0 0 30px rgba(231,76,60,.25);
+  }
+  .hpfill{
+    position:absolute; inset:0 auto; height:100%; left:0;
+    width:100%; background:linear-gradient(90deg,#6fdc8f,#f1c40f,#e74c3c);
+    border-radius:12px; transition:width .35s cubic-bezier(.25,1,.35,1);
+  }
+  #hpLabel{
+    position:absolute; left:50%; bottom:calc(12% + 34px); transform:translateX(-50%);
+    font-size:13px; color:#d9c9c9; z-index:3; letter-spacing:.04em;
+  }
+
+  /* ============ 子彈（留言卡） ============ */
+  #bullets{ position:absolute; inset:0; z-index:4; pointer-events:none; }
+  .bullet{
+    position:absolute; left:-200px; top:0; will-change:transform,opacity;
+    padding:8px 14px; background:rgba(24,18,30,.85);
+    border:1px solid var(--aura); border-radius:14px; color:var(--ink);
+    font-size:clamp(12px,2vw,17px); max-width:230px; white-space:nowrap;
+    box-shadow:0 0 18px rgba(122,63,209,.35);
+    --dmg:1;
+    transform-origin:left center;
+  }
+  .bullet .heart{ color:#ff6b81; }
+  .bullet .like-val{ color:var(--gold); font-weight:bold; font-size:.72em; }
+
+  /* ============ 留言輸入 / 支援 ============ */
+  #dock{
+    position:absolute; right:2.6%; top:16%; z-index:10; width:clamp(230px,24vw,320px);
+    background:rgba(16,12,22,.92); border:1px solid var(--aura); border-radius:16px;
+    padding:14px 16px; box-shadow:0 0 24px rgba(122,63,209,.3);
+  }
+  #dock h2{ font-size:15px; color:#b9a6d8; letter-spacing:.08em; margin-bottom:8px; }
+  #commentBox{
+    width:100%; height:76px; resize:none; font-family:inherit; font-size:14px;
+    background:#120c18; color:var(--ink); border:1px solid #473a63;
+    border-radius:10px; padding:8px; outline:none;
+  }
+  #commentBox:focus{ border-color:var(--aura); box-shadow:0 0 0 2px rgba(122,63,209,.35); }
+  #fireBtn{
+    width:100%; margin-top:8px; padding:12px; font-size:16px; letter-spacing:.2em;
+    background:linear-gradient(90deg,#7a3fd1,#a04fd8); color:#fff; border:none;
+    border-radius:12px; cursor:pointer; font-weight:bold;
+    box-shadow:0 4px 16px rgba(122,63,209,.45); transition:transform .08s;
+  }
+  #fireBtn:active{ transform:translateY(2px); }
+  #fireBtn:disabled{ opacity:.45; cursor:not-allowed; }
+  #focusHint{
+    margin-top:10px; font-size:11.5px; color:#8a7ba0; line-height:1.55;
+  }
+
+  /* ============ 留言牆（已射嘅子彈） ============ */
+  #wall{
+    position:absolute; left:2.6%; top:16%; bottom:18%; z-index:8;
+    width:clamp(200px,21vw,290px);
+    background:rgba(14,10,20,.88); border:1px solid #4a3a6a; border-radius:16px;
+    padding:12px 14px; overflow-y:auto;
+  }
+  #wall h3{
+    font-size:12px; color:#7d6fa8; letter-spacing:.14em; text-transform:uppercase;
+    position:sticky; top:0; background:rgba(14,10,20,.92); padding-bottom:4px;
+  }
+  .w-msg{
+    background:rgba(26,20,38,.7); border-radius:10px; padding:7px 9px; margin:5px 0;
+    font-size:12.5px; color:var(--ink); line-height:1.4;
+  }
+  .w-msg .meta{ display:block; font-size:10.5px; color:#8f80a5; margin-top:3px; }
+  .like-btn{
+    display:inline-flex; align-items:center; gap:4px; margin-left:auto;
+    background:none; border:1px solid #5b4a7e; color:#ff6b81; border-radius:8px;
+    padding:1px 7px; font-size:11px; cursor:pointer; line-height:1.3;
+  }
+  .like-btn:hover{ background:rgba(255,107,129,.14); }
+  .like-btn .n{ color:#ffb3c0; font-weight:bold; }
+
+  /* 控場按鈕 */
+  #controls{ position:absolute; left:50%; bottom:6%; transform:translateX(-50%); z-index:11; display:none; }
+  #resetBtn{
+    padding:8px 18px; font-size:13px; background:rgba(20,14,28,.85); color:#c9c0d8;
+    border:1px solid #5b4a7e; border-radius:20px; cursor:pointer;
+  }
+
+  /* 旁白 = 潛藏子彈 */
+  #whisper{
+    position:absolute; left:50%; top:8%; transform:translateX(-50%);
+    font-size:clamp(11px,1.9vw,15px); color:#6f8090; font-style:italic;
+    opacity:0; transition:opacity .8s; z-index:6;
+  }
+
+  /* 全螢幕冷言 */
+  #coldverse{
+    position:absolute; inset:0; z-index:12; display:none;
+    background:rgba(5,3,8,.6); align-items:center; justify-content:center; text-align:center;
+  }
+  #coldverse p{ font-size:clamp(18px,3.6vw,30px); color:#e6d9f0; font-style:italic; letter-spacing:.05em; line-height:1.6; }
+  #coldverse small{ display:block; margin-top:14px; color:#8a7ba0; font-size:13px; }
+
+  @media (max-width:900px){
+    #dock{ left:auto; top:auto; bottom:20%; right:50%; transform:translateX(50%); width:min(88vw,360px); }
+    #wall{ left:auto; top:auto; bottom:0; right:50%; transform:translateX(50%); width:min(94vw,420px); height:150px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="sky"><canvas id="stars"></canvas></div>
+  <div id="whisper"></div>
+
+  <div id="bossTitle">
+    <h1>The <span style="color:#e74c3c">Entropy</span></h1>
+    <div id="reviveTag">第一章 · 初臨</div>
+  </div>
+
+  <div class="boss-zone">
+    <div class="boss" id="boss"><span class="figure" id="bossGlyph">👹</span></div>
+  </div>
+
+  <div id="hpLabel"><span id="hpNum">∞</span> / <span id="hpMax">∞</span></div>
+  <div class="hpbar"><div class="hpfill" id="hpfill"></div></div>
+
+  <div id="bullets"></div>
+
+  <div id="dock">
+    <h2>✦ 將你嘅話化做子彈</h2>
+    <textarea id="commentBox" maxlength="120" placeholder="留一句嘢……"></textarea>
+    <button id="fireBtn">發射</button>
+    <div id="focusHint">天地有熵。<br>我哋得把口 —— 但把口都好有力。</div>
+  </div>
+
+  <div id="wall">
+    <h3>已射出嘅話</h3>
+  </div>
+
+  <div id="controls"><button id="resetBtn">↺ 重新開始</button></div>
+  <div id="coldverse"><p id="coldText"></p><small id="coldSub"></small></div>
+</div>
+
+<script>
+/* ============================================================
+   熵王 ／ The Entropy
+   規則做到最簡：
+     - 留言就係子彈
+     - ♥ 愈多，攻擊力愈大
+     - 魔王無限復活，每次更強（熵增）
+   冇登入 冇積分 冇說明。得一隻魔王淨係勞人。
+============================================================ */
+
+const wrap   = document.getElementById('wrap');
+const canvas = document.getElementById('stars');
+const ctx    = canvas.getContext('2d');
+const boss   = document.getElementById('boss');
+const glyph  = document.getElementById('bossGlyph');
+const hpFill = document.getElementById('hpfill');
+const hpNum  = document.getElementById('hpNum');
+const hpMax  = document.getElementById('hpMax');
+const reviveTag = document.getElementById('reviveTag');
+const bullets   = document.getElementById('bullets');
+const wall      = document.getElementById('wallMsg') || document.getElementById('wall');
+const box     = document.getElementById('commentBox');
+const fireBtn = document.getElementById('fireBtn');
+const whisper = document.getElementById('whisper');
+const coldverse = document.getElementById('coldverse');
+const coldText = document.getElementById('coldText');
+const coldSub  = document.getElementById('coldSub');
+
+const DPR = Math.min(window.devicePixelRatio||1, 2);
+let W,H;
+function fit(){ W=canvas.width=Math.floor(wrap.clientWidth*DPR); H=canvas.height=Math.floor(wrap.clientHeight*DPR); }
+fit(); addEventListener('resize', fit);
+
+/* ---------- 星空 + 灰塵粒子（熵嘅喧囂） ---------- */
+const dust=[];
+for(let i=0;i<110;i++){ dust.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.3,sp:.0004+Math.random()*.0012,ph:Math.random()*6.28}); }
+let t=0;
+function drawSky(){
+  ctx.clearRect(0,0,W,H);
+  t+=.002;
+  for(const d of dust){
+    d.y+=d.sp; if(d.y>1.02) d.y=-.02;
+    const a=.18+.5*Math.abs(Math.sin(t*3+d.ph));
+    ctx.fillStyle=`rgba(200,190,220,${a})`;
+    ctx.beginPath(); ctx.arc(d.x*W, d.y*H, d.r*DPR, 0, 6.283); ctx.fill();
+  }
+  requestAnimationFrame(drawSky);
+}
+drawSky();
+
+/* ---------- 魔王狀態 ---------- */
+const BOSS={
+  base:1000,            // 第一世生命
+  mult:1.0,             // 熵乘數（每次復活 ↑）
+  scale:1.8,            // 魔王大細（復活 ↑）
+  hp:1000, max:1000,
+  era:1,
+};
+const REVIVE_MULT = 1.7;   // 熵增：每世 ×1.7 生命
+const ERATITLES = ['初臨','重臨','再臨','三臨','已臨','十臨','百臨','千臨','萬臨'];
+const GLYPHS = ['👹','😈','👿','💀','☠️','👾','🦴','🔥','⚡','💥'];
+
+function revive(reset){
+  if(reset){ BOSS.era=1; BOSS.mult=1; BOSS.scale=1.8; }
+  else { BOSS.era++; BOSS.mult*=REVIVE_MULT; BOSS.scale=Math.min(BOSS.scale*1.14, 4.4); }
+  BOSS.max = Math.round(BOSS.base*BOSS.mult);
+  BOSS.hp   = BOSS.max;
+  hpMax.textContent = fmt(BOSS.max);
+  reviveTag.textContent = ERATITLES[Math.min(BOSS.era-1, ERATITLES.length-1)] + (BOSS.era>1? ` · 熵增 ×${BOSS.mult.toFixed(1)}`:'');
+  glyph.textContent = GLYPHS[Math.min(BOSS.era-1, GLYPHS.length-1)];
+  glyph.style.fontSize = `clamp(70px, ${16*Math.min(BOSS.scale/1.8,2.4)}vw, ${150*Math.min(BOSS.scale/1.8,2)}px)`;
+  boss.classList.remove('dead');
+  boss.classList.add('spawn');
+  setTimeout(()=>boss.classList.remove('spawn'),900);
+  renderHp();
+  if(!reset) coldVerse(BOSS.era);
+}
+function fmt(n){ if(n>=1e6) return (n/1e6).toFixed(2)+'M'; if(n>=1e4) return (n/1e3).toFixed(1)+'k'; return n.toLocaleString(); }
+function renderHp(){
+  hpFill.style.width = Math.max(0, BOSS.hp/BOSS.max*100)+'%';
+  hpNum.textContent  = BOSS.hp>0? fmt(BOSS.hp) : (BOSS.era<2?'0':'∞');
+}
+function damage(n){
+  if(BOSS.hp<=0) return;
+  BOSS.hp -= n;
+  if(BOSS.hp<0) BOSS.hp=0;
+  boss.classList.remove('hit'); void boss.offsetWidth; boss.classList.add('hit');
+  setTimeout(()=>boss.classList.remove('hit'),200);
+  renderHp();
+  if(BOSS.hp<=0) die();
+}
+function die(){
+  boss.classList.remove('hit'); boss.classList.add('dead');
+  setTimeout(()=>revive(false),1550);
+}
+
+/* ---------- 旁白（潛藏子彈）定時飛出 ---------- */
+const WHISPERS=[
+  '你見到嘅千隻怪，都係同一隻。',
+  '熵只識加唔識減。',
+  '打低咗都未算，佢會返嚟。',
+  '人嘅一件事，就係明知徒勞都出手。',
+  '呢度冇通關。只有一直撳掣。',
+  '佢唔係你敵人。佢係你自己耗損緊嗰種嘢。',
+  '留言冇人睇，都仲係射咗出去。',
+  '漆黑對你講：點解仲要郁？',
+];
+let wi=0;
+setInterval(()=>{
+  whisper.textContent = WHISPERS[wi++ % WHISPERS.length];
+  whisper.style.opacity = 1;
+  setTimeout(()=>whisper.style.opacity=0, 3200);
+}, 6200);
+
+/* ---------- 冷言（魔王復活嗰刻） ---------- */
+const COLDS=[
+  '我返嚟喇。你仲喺度，即係你仲想打。',
+  '你啱啱赢咗一局。但你冇得收工。',
+  '越多你哋出手，我下次越厚。',
+  '你射我嗰啲字，我會全部記住。',
+  '執得再好，都係一時。',
+];
+let ci=0;
+function coldVerse(era){
+  coldText.textContent = '「'+COLDS[ci++ % COLDS.length]+'」';
+  coldSub.textContent  = era===1? '魔王復活 —— 但呢次唔係第一次。' : `第 ${era} 世 · 生命 ×${BOSS.mult.toFixed(1)}`;
+  coldverse.style.display='flex';
+  setTimeout(()=>coldverse.style.display='none', 2600);
+}
+
+/* ---------- 留言 = 子彈 ---------- */
+const ATTACK_BASE = 8;       // 基礎傷害
+const LIKE_WEIGHT = 1.0;     // 每個 like 加嘅傷害
+let messageSeq=0;
+const NPC_CHOIR=[
+  '我都係得一把口。', '唔好放棄。', '我喺度。',
+  '我知你好攰，但仲有一下。', '將我啲數據送埋你。',
+  'Hello?', '我哋一齊。', '唔好熄機。',
+  '之後交俾你喇。', '辛苦了。',
+];
+
+function spawnBullet(text, dmg, mine){
+  const b=document.createElement('div');
+  b.className='bullet';
+  b.style.top = (10 + Math.random()*62)+'%';
+  b.style.fontSize = Math.max(12, Math.min(17, 12+dmg/14))+'px';
+  b.dataset.dmg = dmg;
+  b.textContent = text;
+  bullets.appendChild(b);
+  const dur = 3.4 + Math.random()*2.2;
+  b.animate([
+    { transform:'translateX(-220px) translateY(0)', opacity:0 },
+    { opacity:1, offset:.08 },
+    { transform:`translateX(${wrap.clientWidth>=0? wrap.clientWidth*0.92:900}px) translateY(${Math.random()*8-4}px)`, opacity:1, offset:.9 },
+    { opacity:0 }
+  ],{ duration:dur*1000, easing:'linear', fill:'forwards' });
+  setTimeout(()=>{
+    bullets.removeChild(b);
+    damage(dmg);
+  }, dur*1000);
+}
+
+function fire(text, dmg){
+  spawnBullet(text, dmg, true);
+  addWall(text, dmg, true);
+}
+
+/* ---------- 留言牆 ---------- */
+let wallEl;
+function ensureWall(){
+  if(wallEl) return wallEl;
+  wallEl = document.getElementById('wall');
+  return wallEl;
+}
+function addWall(text, dmg, mine){
+  const w = ensureWall();
+  const m=document.createElement('div');
+  m.className='w-msg';
+  const id = messageSeq++;
+  m.innerHTML = `<span class="t">${esc(text)}</span>
+    <span class="meta">${mine? '你' : '路人'} · ${dmg} dmg
+      <button class="like-btn" data-id="${id}" data-dmg="${dmg}">♥ <span class="n">0</span></button>
+    </span>`;
+  w.appendChild(m);
+  w.scrollTop = w.scrollHeight;
+}
+function esc(s){
+  const d=document.createElement('div'); d.textContent=s; return d.innerHTML;
+}
+/* like → 攻擊力上升 */
+let likeCounts={};
+document.addEventListener('click', e=>{
+  const btn=e.target.closest('.like-btn');
+  if(!btn) return;
+  const id=btn.dataset.id, dmg=+btn.dataset.dmg;
+  likeCounts[id]=(likeCounts[id]||0)+1;
+  btn.querySelector('.n').textContent=likeCounts[id];
+  const boost = LIKE_WEIGHT * likeCounts[id];
+  spawnBullet('♥ '+(likeCounts[id]), Math.round(dmg+boost), false);
+});
+
+/* ---------- 觸發 ---------- */
+fireBtn.addEventListener('click', ()=>{
+  const text=box.value.trim();
+  if(!text) return;
+  const base = ATTACK_BASE + Math.floor(text.length/4); // 字多都要痛少少,但唔好多
+  fire(text, base);
+  box.value='';
+  box.focus();
+});
+box.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); fireBtn.click(); } });
+
+/* 前台隨機跳出「路人子彈」（NPC 旁白詞） */
+let npcTimer;
+function scheduleNPC(){
+  npcTimer=setTimeout(()=>{
+    const dmg=ATTACK_BASE+Math.floor(Math.random()*8);
+    const txt=NPC_CHOIR[Math.floor(Math.random()*NPC_CHOIR.length)];
+    addWall(txt, dmg, false);
+    // 唔一定每次都射,佢嘅子彈有啲啞
+    if(Math.random()<0.62) spawnBullet('「'+txt+'」', dmg, false);
+    scheduleNPC();
+  }, 4200+Math.random()*4200);
+}
+scheduleNPC();
+
+/* ---------- 重新開始 ---------- */
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ document.getElementById('controls').style.display=''; }
+});
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  document.getElementById('controls').style.display='none';
+  revive(true);
+});
+
+/* 初始 */
+revive(true);
+</script>
+</body>
+</html>
